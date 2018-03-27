@@ -15,6 +15,8 @@ def stopVM(id):
 def migrateCont(contid, srcid, destid):
 	#use criu to migrate
 	print (contid)
+	#aws ssm send-command --document-name "AWS-RunPowerShellScript" --parameters commands=["echo helloWorld"] --targets "Key=instanceids,Values=i-0cb2b964d3e14fd9f"
+
 def manage():
 	#for cont in containers:
 		#check predicted value
