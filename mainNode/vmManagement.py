@@ -1,4 +1,5 @@
 import subprocess
+import os
 
 def startVM(id):
 	print (id)
@@ -16,6 +17,13 @@ def migrateCont(contid, srcid, destid):
 	#use criu to migrate
 	print (contid)
 	#aws ssm send-command --document-name "AWS-RunPowerShellScript" --parameters commands=["echo helloWorld"] --targets "Key=instanceids,Values=i-0cb2b964d3e14fd9f"
+def getIP(id):
+
+	bashCommand = "aws ec2 describe-instances --filters Name=instance-id,Values=" + str(id) + " --query Reservations[*].Instances[*].[PublicIpAddress] --output=text"
+	process = subprocess.Popen(bashCommand.split(), stdout=subprocess.PIPE)
+        output, error = process.communicate()
+	#output = os.system(bashCommand)
+	return output
 
 def manage():
 	#for cont in containers:
@@ -25,6 +33,6 @@ def manage():
 	#		startVM(destid)
 	#		migrateCont(cont, srcid, destid)
 	#		stopVM(srcid)
-	startVM("i-046d3a8ec1ca1a3fb")
-
+	address = getIP("i-046d3a8ec1ca1a3fb")
+	print("The address is " + address)
 manage()
