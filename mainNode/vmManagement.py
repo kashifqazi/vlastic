@@ -1,6 +1,7 @@
 import subprocess
 import os
 import paramiko
+import time
 
 def startVM(id):
 	print (id)
@@ -61,13 +62,32 @@ def getIP(id):
 	return output
 
 def manage():
-	#for cont in containers:
-		#check predicted value
-		#check current VM capacity
-		#if capacity mismatch
-	#		startVM(destid)
-	#		migrateCont(cont, srcid, destid)
-	#		stopVM(srcid)
+
+	# Important Files at mainNode
+	# Historical Loads of Container - actualLoad
+	# VM ids and status - vmlList
+	# Container IDs and Locations - containerList
+	# New Container Mappings - contMapping
+	# New Predicted Loads of Containers - predictedLoad
+
+	while (True):
+
+		predict() #Predict all cont loads from containerList and actualLoad, store in predictedLoad
+		cli = getContFuture()
+		vli = getVMList()
+		packCont(cli, vli) #Pack containers, mapping stored in contMapping
+		for vmid in shutVMs:
+			startVM(vmid) #Start VMs needed but switched off
+		for cont-vm-pair in contMapping:
+			migrateCont(cont, src, dest) #Move containers according to mapping
+			kill -9 cont #Kill moved containers at source
+		containerList = contMapping #Update container locations
+		for vmid in unusedVMs:
+			shutVM(vmid) #Shut unneeded VMs
+
+		time.sleep(1800) #That's all for now, folks! Sleep for 30 minutes
+
+def testing():
 	migrateCont("5697", "i-046d3a8ec1ca1a3fb", "i-0d1b8926c68847b0d")
-	#print("The address is " + address)
-manage()
+
+testing()
