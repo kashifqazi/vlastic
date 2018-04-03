@@ -53,6 +53,19 @@ def migrateCont(contid, srcid, destid):
 	#process = subprocess.Popen(bashCommand, stdout=subprocess.PIPE)
 	#output, error = process.communicate()
 	#aws ssm send-command --document-name "AWS-RunPowerShellScript" --parameters commands=["echo helloWorld"] --targets "Key=instanceids,Values=i-0cb2b964d3e14fd9f"
+
+
+def killContainer(cont, srcid):
+
+	srcIP = getIP(srcid)
+        clientsrc = paramiko.SSHClient()
+        clientsrc.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        clientsrc.connect(srcIP, username='ubuntu', key_filename='/home/ubuntu/vlastic/docker2.pem')
+	stdin, stdout, stderr = clientsrc.exec_command("sudo kill -9 " + cont)
+        for line in stderr:
+                print(line.rstrip('\n'))
+	clientsrc.close()
+
 def getIP(id):
 
 	bashCommand = "aws ec2 describe-instances --filters Name=instance-id,Values=" + str(id) + " --query Reservations[*].Instances[*].[PublicIpAddress] --output=text"
@@ -135,6 +148,32 @@ def copyFileContents(inf, outf):
 	infile.close()
 	outfile.close()
 
+def recordLogs(cm):
+
+	# Format of log file
+	# timestamp,cont1(pload1;vmx),cont2(pload2;vmy),cont3(pload3;vmz),...,noofvms
+	# :
+	# :
+
+	pload = open('predictedLoad' ,'r')
+	pl = {}
+	for line in pload:
+		tmp = line.rstrip('\n').split(',')
+		pl[tmp[0]] = tmp[1]
+	pload.close()
+
+	outfile = open('logs', 'a')
+
+	outfile.write(str(time.time()) + ',')
+
+	vms = []
+	for c in cm.keys():
+		outfile.write(c + "(" + pl[c] + ";" + cm[c] + "),")
+		if cm[c] not in vms:
+			vms.append(cm[c])
+	outfile.write(str(count(vms)) + '\n')
+	outfile.close()
+
 
 def manage():
 
@@ -158,10 +197,12 @@ def manage():
 		for cont in cmap.keys():
 			if cmap[cont] != cmapcurrent[cont]
 				migrateCont(cont, cmapcurrent[cont], cmap[cont]) #Move containers according to mapping
-				kill -9 cont #Kill moved containers at source
+				killContainer(cont, cmapcurrent[cont]) #Kill moved containers at source
 		copyFileContents(contMapping, containerList) #Update container locations clist = cmapping
 		for vmid in unusedVMs:
 			shutVM(vmid) #Shut unneeded VMs
+
+		recordLogs(cmap) #Record Logs for analysis
 
 		time.sleep(1800) #That's all for now, folks! Sleep for 30 minutes
 
