@@ -61,6 +61,81 @@ def getIP(id):
 	#output = os.system(bashCommand)
 	return output
 
+def getOffOnMapping():
+	vms = open('vmList', 'r')
+	conts = open('contMapping' ,'r')
+
+	vml = vms.readlines()
+	conl = conts.readlines()
+
+	vms.close()
+	conts.close()
+
+	vmsturnon = []
+	vmsturnoff = []
+	vmsneeded = []
+	vmsoff = []
+	vmson = []
+
+	vmsizes = {}
+	vmstats = {}
+
+	cmapping = {}
+
+	for c in conl:
+		tmp = c.rstrip('\n').split(',')
+		cmapping[tmp[0]] = tmp[1]
+		if tmp[1] not in vmsneeded:
+			vmsneeded.append(tmp[1])
+	for v in vml:
+		tmp = v.rstrip('\n').split(',')
+		vmsizes[tmp[0]] = tmp[1]
+		vmstats[tmp[0]] = tmp[2]
+		if tmp[2] == "false":
+			vmsoff.append(tmp[0])
+		else:
+			vmson.append(tmp[0])
+	for v in vmsneeded:
+		if v in vmsoff:
+			vmsturnon.append(v)
+			vmstats[v] = "true"
+
+	for v in vmson:
+		if v not in vmsneeded:
+			vmsturnoff.append(v)
+			vmstats[v] = "false"
+
+	outfile = open('contMapping' ,'w')
+	for v in vmstats.keys():
+		outfile.write(v + ',' + vmsizes[v] + ',' + vmstats[v] + '\n')
+	outfile.close()
+
+	return vmsturnon,vmsturnoff
+
+
+def getCurrentContMap():
+
+	infile = open('containerList' ,'r')
+	contmap = {}
+	for line in infile:
+		tmp = line.rstrip('\n').split(',')
+		contmap[tmp[0]] = tmp[1]
+	infile.close()
+
+	return contmap
+
+
+def copyFileContents(inf, outf):
+
+	infile = open(inf, 'r')
+	outfile = open(outf, 'w')
+
+	for line in infile:
+		outfile.write(line.rstrip('\n') + '\n')
+	infile.close()
+	outfile.close()
+
+
 def manage():
 
 	# Important Files at mainNode
@@ -76,12 +151,15 @@ def manage():
 		cli = getContFuture()
 		vli = getVMList()
 		packCont(cli, vli) #Pack containers, mapping stored in contMapping
+		shutVMs, unusedVMs, cmap = getOffOnMapping()
+		cmapcurrent = getCurrentContMap()
 		for vmid in shutVMs:
 			startVM(vmid) #Start VMs needed but switched off
-		for cont-vm-pair in contMapping:
-			migrateCont(cont, src, dest) #Move containers according to mapping
-			kill -9 cont #Kill moved containers at source
-		containerList = contMapping #Update container locations
+		for cont in cmap.keys():
+			if cmap[cont] != cmapcurrent[cont]
+				migrateCont(cont, src, dest) #Move containers according to mapping
+				kill -9 cont #Kill moved containers at source
+		copyFileContents(contMapping, containerList) #Update container locations clist = cmapping
 		for vmid in unusedVMs:
 			shutVM(vmid) #Shut unneeded VMs
 
