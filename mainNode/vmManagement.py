@@ -157,7 +157,7 @@ def manage():
 			startVM(vmid) #Start VMs needed but switched off
 		for cont in cmap.keys():
 			if cmap[cont] != cmapcurrent[cont]
-				migrateCont(cont, src, dest) #Move containers according to mapping
+				migrateCont(cont, cmapcurrent[cont], cmap[cont]) #Move containers according to mapping
 				kill -9 cont #Kill moved containers at source
 		copyFileContents(contMapping, containerList) #Update container locations clist = cmapping
 		for vmid in unusedVMs:
