@@ -285,7 +285,7 @@ def manage():
 		copyFileContents('/home/ubuntu/vlastic/mainNode/contMapping', '/home/ubuntu/vlastic/mainNode/containerList') #Update container locations clist = cmapping
 		print('Shuttin VMs Unneeded...')
 		for vmid in unusedVMs:
-			shutVM(vmid) #Shut unneeded VMs
+			stopVM(vmid) #Shut unneeded VMs
 
 		print('Recording Logs...')
 		recordLogs(cmap) #Record Logs for analysis
