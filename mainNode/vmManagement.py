@@ -34,13 +34,13 @@ def packCont (clist, vdict):
                 prob += lpSum([items[j][1] * x[(items[j][0], i)] for j in range(itemCount)]) <= binCapacity[i]*y[i]
         prob.solve()
 
-        print("Bins used: " + str(sum(([y[i].value() for i in range(maxBins)]))))
+        print("VMs used: " + str(sum(([y[i].value() for i in range(maxBins)]))))
 
         outfile = open('/home/ubuntu/vlastic/mainNode/contMapping', 'w')
         for i in x.keys():
                 if x[i].value() == 1:
                         #print("Item {} is packed in bin {}.".format(*i))
-                        print("Item " + str(i[0]) + " in bin " + str(binNames[i[1]]) + " with capacity " + str(binCapacity[i[1]]))
+                        print("Container " + str(i[0]) + " in VM " + str(binNames[i[1]]) + " with capacity " + str(binCapacity[i[1]]))
                         outfile.write(str(i[0]) + "," + str(binNames[i[1]]) + '\n')
         outfile.close()
 
@@ -67,25 +67,33 @@ def getVMList():
 
 
 def startVM(id):
-	print (id)
+	#print (id)
 	bashCommand = "aws ec2 start-instances --instance-ids " + str(id)
 	process = subprocess.Popen(bashCommand.split(), stdout=subprocess.PIPE)
 	output, error = process.communicate()
+	bashCommand = "aws ec2 wait instance-running --instance-ids " + str(id)
+        process = subprocess.Popen(bashCommand.split(), stdout=subprocess.PIPE)
+        output, error = process.communicate()
+	print("VM Running")
+	bashCommand = "aws ec2 wait instance-status-ok --instance-ids " + str(id)
+        process = subprocess.Popen(bashCommand.split(), stdout=subprocess.PIPE)
+        output, error = process.communicate()
+	print("VM OK")
+
 
 def stopVM(id):
-	print (id)
+	#print (id)
 	bashCommand = "aws ec2 stop-instances --instance-ids " + str(id)
 	process = subprocess.Popen(bashCommand.split(), stdout=subprocess.PIPE)
 	output, error = process.communicate()
 
 def migrateCont(contid, srcid, destid):
 	#use criu to migrate
-	print (contid)
 	srcIP = getIP(srcid)
 	dstIP = getIP(destid)
 	clientsrc = paramiko.SSHClient()
 	clientsrc.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-	clientsrc.connect(srcIP, username='ubuntu', key_filename='/home/ubuntu/vlastic/docker2.pem')
+	clientsrc.connect(srcIP.rstrip('\n'), username='ubuntu', key_filename='/home/ubuntu/vlastic/docker2.pem')
 
 	clientdst = paramiko.SSHClient()
         clientdst.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -265,31 +273,35 @@ def manage():
 
 	while (True):
 
-		print('Predicting...')
+		print('### Predicting...')
 		predict() #Predict all cont loads from containerList and actualLoad, store in predictedLoad
 		cli = getContFuture()
 		vli = getVMList()
-		print('Packing...')
+		print('### Packing...')
 		packCont(cli, vli) #Pack containers, mapping stored in contMapping
 		shutVMs, unusedVMs, cmap = getOffOnMapping()
 		cmapcurrent = getCurrentContMap()
-		print('Starting VMs Needed...')
+		print('### Starting VMs Needed...')
+		print(str(len(shutVMs)) + " to Start")
 		for vmid in shutVMs:
+			print('Starting '+ vmid)
 			startVM(vmid) #Start VMs needed but switched off
-		print('Migrating Containers...')
+		print('### Migrating Containers...')
 		for cont in cmap.keys():
 			if cmap[cont] != cmapcurrent[cont]:
-				print('Migrating ' + cont + '...')
+				print('Migrating ' + cont)
 				migrateCont(cont, cmapcurrent[cont], cmap[cont]) #Move containers according to mapping
 				killContainer(cont, cmapcurrent[cont]) #Kill moved containers at source
 		copyFileContents('/home/ubuntu/vlastic/mainNode/contMapping', '/home/ubuntu/vlastic/mainNode/containerList') #Update container locations clist = cmapping
-		print('Shuttin VMs Unneeded...')
+		print('### Shutting VMs Unneeded...')
+		print(str(len(unusedVMs)) + " to Shut")
 		for vmid in unusedVMs:
+			print('Shutting ' + vmid)
 			stopVM(vmid) #Shut unneeded VMs
 
-		print('Recording Logs...')
+		print('### Recording Logs...')
 		recordLogs(cmap) #Record Logs for analysis
-		print('Sleeping...')
+		print('### Sleeping...')
 		time.sleep(600) #That's all for now, folks! Sleep for 30 minutes
 
 def testing():
