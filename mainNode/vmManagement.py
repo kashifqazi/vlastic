@@ -2,7 +2,69 @@ import subprocess
 import os
 import paramiko
 import time
-import packContainers
+from pulp import *
+
+
+def packCont (clist, vdict):
+        items = clist
+        itemCount = len(items)
+        maxBins = 0
+        binNames = []
+        binCapacity = []
+        binCost = []
+        for bin in vdict:
+                binNames.append(bin)
+                binCapacity.append(vdict[bin])
+                binCost.append(vdict[bin]/512)
+        maxBins = len(binNames)
+        y = pulp.LpVariable.dicts('BinUsed', range(maxBins), lowBound = 0, upBound = 1, cat = pulp.LpInteger)
+        possible_ItemInBin = [(itemTuple[0], binNum) for itemTuple in items for binNum in range(maxBins)]
+        x = pulp.LpVariable.dicts('itemInBin', possible_ItemInBin, lowBound = 0, upBound = 1, cat = pulp.LpInteger)
+
+        # Model formulation
+        prob = LpProblem("Bin Packing Problem", LpMinimize)
+
+        # Objective
+        prob += lpSum([binCost[i] * y[i] for i in range(maxBins)])
+
+        # Constraints
+        for j in items:
+                prob += lpSum([x[(j[0], i)] for i in range(maxBins)]) == 1
+        for i in range(maxBins):
+                prob += lpSum([items[j][1] * x[(items[j][0], i)] for j in range(itemCount)]) <= binCapacity[i]*y[i]
+        prob.solve()
+
+        print("Bins used: " + str(sum(([y[i].value() for i in range(maxBins)]))))
+
+        outfile = open('/home/ubuntu/vlastic/mainNode/contMapping', 'w')
+        for i in x.keys():
+                if x[i].value() == 1:
+                        #print("Item {} is packed in bin {}.".format(*i))
+                        print("Item " + str(i[0]) + " in bin " + str(binNames[i[1]]) + " with capacity " + str(binCapacity[i[1]]))
+                        outfile.write(str(i[0]) + "," + str(binNames[i[1]]) + '\n')
+        outfile.close()
+
+
+
+def getContFuture():
+        infile = open('/home/ubuntu/vlastic/mainNode/predictedLoad' ,'r')
+        cl = []
+        for line in infile:
+                temp = line.rstrip('\n').split(',')
+                cl.append((temp[0], int(temp[1])))
+        infile.close()
+
+        return cl
+
+def getVMList():
+        infile = open('/home/ubuntu/vlastic/mainNode/vmList' ,'r')
+        vli = {}
+        for line in infile:
+                temp = line.rstrip('\n').split(',')
+                vli[temp[0]] = int(temp[1])
+        infile.close()
+        return vli
+
 
 def startVM(id):
 	print (id)
@@ -76,8 +138,8 @@ def getIP(id):
 	return output
 
 def getOffOnMapping():
-	vms = open('vmList', 'r')
-	conts = open('contMapping' ,'r')
+	vms = open('/home/ubuntu/vlastic/mainNode/vmList', 'r')
+	conts = open('/home/ubuntu/vlastic/mainNode/contMapping' ,'r')
 
 	vml = vms.readlines()
 	conl = conts.readlines()
@@ -119,17 +181,17 @@ def getOffOnMapping():
 			vmsturnoff.append(v)
 			vmstats[v] = "false"
 
-	outfile = open('contMapping' ,'w')
+	outfile = open('/home/ubuntu/vlastic/mainNode/vmList' ,'w')
 	for v in vmstats.keys():
 		outfile.write(v + ',' + vmsizes[v] + ',' + vmstats[v] + '\n')
 	outfile.close()
 
-	return vmsturnon,vmsturnoff
+	return vmsturnon,vmsturnoff,cmapping
 
 
 def getCurrentContMap():
 
-	infile = open('containerList' ,'r')
+	infile = open('/home/ubuntu/vlastic/mainNode/containerList' ,'r')
 	contmap = {}
 	for line in infile:
 		tmp = line.rstrip('\n').split(',')
@@ -151,17 +213,18 @@ def copyFileContents(inf, outf):
 
 def predict():
 
-	infile = open('predictedLoad', 'r')
-	loads = infile.readline()
+	infile = open('/home/ubuntu/vlastic/mainNode/predictedLoad', 'r')
+	loads = infile.readlines()
 	infile.close()
 
-	outfile = open('predictedLoad', 'w')
+	outfile = open('/home/ubuntu/vlastic/mainNode/predictedLoad', 'w')
 	for l in loads:
+		print l
 		tmp = l.rstrip('\n').split(',')
-		if tmp[1] == '256':
-			outfile.write(tmp[0]+',512\n')
+		if tmp[1] == '200':
+			outfile.write(tmp[0]+',500\n')
 		else:
-			outfile.write(tmp[0]+',256\n')
+			outfile.write(tmp[0]+',200\n')
 	outfile.close()
 
 def recordLogs(cm):
@@ -171,14 +234,14 @@ def recordLogs(cm):
 	# :
 	# :
 
-	pload = open('predictedLoad' ,'r')
+	pload = open('/home/ubuntu/vlastic/mainNode/predictedLoad' ,'r')
 	pl = {}
 	for line in pload:
 		tmp = line.rstrip('\n').split(',')
 		pl[tmp[0]] = tmp[1]
 	pload.close()
 
-	outfile = open('logs', 'a')
+	outfile = open('/home/ubuntu/vlastic/mainNode/logs', 'a')
 
 	outfile.write(str(time.time()) + ',')
 
@@ -187,7 +250,7 @@ def recordLogs(cm):
 		outfile.write(c + "(" + pl[c] + ";" + cm[c] + "),")
 		if cm[c] not in vms:
 			vms.append(cm[c])
-	outfile.write(str(count(vms)) + '\n')
+	outfile.write(str(len(vms)) + '\n')
 	outfile.close()
 
 
@@ -215,10 +278,11 @@ def manage():
 			startVM(vmid) #Start VMs needed but switched off
 		print('Migrating Containers...')
 		for cont in cmap.keys():
-			if cmap[cont] != cmapcurrent[cont]
+			if cmap[cont] != cmapcurrent[cont]:
+				print('Migrating ' + cont + '...')
 				migrateCont(cont, cmapcurrent[cont], cmap[cont]) #Move containers according to mapping
 				killContainer(cont, cmapcurrent[cont]) #Kill moved containers at source
-		copyFileContents(contMapping, containerList) #Update container locations clist = cmapping
+		copyFileContents('/home/ubuntu/vlastic/mainNode/contMapping', '/home/ubuntu/vlastic/mainNode/containerList') #Update container locations clist = cmapping
 		print('Shuttin VMs Unneeded...')
 		for vmid in unusedVMs:
 			shutVM(vmid) #Shut unneeded VMs
@@ -226,7 +290,7 @@ def manage():
 		print('Recording Logs...')
 		recordLogs(cmap) #Record Logs for analysis
 		print('Sleeping...')
-		time.sleep(1800) #That's all for now, folks! Sleep for 30 minutes
+		time.sleep(600) #That's all for now, folks! Sleep for 30 minutes
 
 def testing():
 	migrateCont("5697", "i-046d3a8ec1ca1a3fb", "i-0d1b8926c68847b0d")
