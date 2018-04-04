@@ -2,6 +2,7 @@ import subprocess
 import os
 import paramiko
 import time
+import packContainers
 
 def startVM(id):
 	print (id)
@@ -148,6 +149,21 @@ def copyFileContents(inf, outf):
 	infile.close()
 	outfile.close()
 
+def predict():
+
+	infile = open('predictedLoad', 'r')
+	loads = infile.readline()
+	infile.close()
+
+	outfile = open('predictedLoad', 'w')
+	for l in loads:
+		tmp = l.rstrip('\n').split(',')
+		if tmp[1] == '256':
+			outfile.write(tmp[0]+',512\n')
+		else:
+			outfile.write(tmp[0]+',256\n')
+	outfile.close()
+
 def recordLogs(cm):
 
 	# Format of log file
@@ -186,27 +202,33 @@ def manage():
 
 	while (True):
 
+		print('Predicting...')
 		predict() #Predict all cont loads from containerList and actualLoad, store in predictedLoad
 		cli = getContFuture()
 		vli = getVMList()
+		print('Packing...')
 		packCont(cli, vli) #Pack containers, mapping stored in contMapping
 		shutVMs, unusedVMs, cmap = getOffOnMapping()
 		cmapcurrent = getCurrentContMap()
+		print('Starting VMs Needed...')
 		for vmid in shutVMs:
 			startVM(vmid) #Start VMs needed but switched off
+		print('Migrating Containers...')
 		for cont in cmap.keys():
 			if cmap[cont] != cmapcurrent[cont]
 				migrateCont(cont, cmapcurrent[cont], cmap[cont]) #Move containers according to mapping
 				killContainer(cont, cmapcurrent[cont]) #Kill moved containers at source
 		copyFileContents(contMapping, containerList) #Update container locations clist = cmapping
+		print('Shuttin VMs Unneeded...')
 		for vmid in unusedVMs:
 			shutVM(vmid) #Shut unneeded VMs
 
+		print('Recording Logs...')
 		recordLogs(cmap) #Record Logs for analysis
-
+		print('Sleeping...')
 		time.sleep(1800) #That's all for now, folks! Sleep for 30 minutes
 
 def testing():
 	migrateCont("5697", "i-046d3a8ec1ca1a3fb", "i-0d1b8926c68847b0d")
 
-testing()
+manage()

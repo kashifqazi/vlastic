@@ -4,7 +4,7 @@ from pulp import *
 def packCont (clist, vdict):
 	items = clist
 	itemCount = len(items)
-	maxBins = 5
+	maxBins = 0
 	binNames = []
 	binCapacity = []
 	binCost = []
@@ -12,6 +12,7 @@ def packCont (clist, vdict):
 		binNames.append(bin)
 		binCapacity.append(vdict[bin])
 		binCost.append(vdict[bin]/512)
+	maxBins = count(binNames)
 	y = pulp.LpVariable.dicts('BinUsed', range(maxBins), lowBound = 0, upBound = 1, cat = pulp.LpInteger)
 	possible_ItemInBin = [(itemTuple[0], binNum) for itemTuple in items for binNum in range(maxBins)]
 	x = pulp.LpVariable.dicts('itemInBin', possible_ItemInBin, lowBound = 0, upBound = 1, cat = pulp.LpInteger)
@@ -60,6 +61,6 @@ def getVMList():
 	infile.close()
 	return vli
 
-cli = getContFuture()
-vli = getVMList()
-packCont(cli, vli)
+#cli = getContFuture()
+#vli = getVMList()
+#packCont(cli, vli)
